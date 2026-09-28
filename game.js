@@ -1,15 +1,17 @@
 /**
- * 倉頡打字太空射擊遊戲 - 純前端無資料庫版 (Local Version)
- * 使用 Web Audio API 合成音效 + LocalStorage 持久化排行榜
+ * 倉頡打字太空射擊遊戲 - 戰機重置美化版 (Local Version)
+ * 1. 移除底部緩衝欄 -> 改為戰機跟隨式霓虹浮動指示器
+ * 2. 第一關下落速度大幅提速 1.3 倍
+ * 3. 動態「圓形護盾罩」厚度與顏色變化
  */
 
-// --- 1. 三關難度字庫設定 (嚴格遵循學習冊拆碼) ---
+// --- 1. 三關字庫設定 (速度加快 1.3 倍) ---
 const LEVEL_DATA = {
     1: {
         title: "第一關：倉頡基本字根",
         description: "單一按鍵，熟記鍵盤與字根配對！",
-        speed: 1.1,
-        spawnInterval: 2600,
+        speed: 1.45, // 原始 1.1 的 1.3 倍 -> 約 1.45，難度與爽快感大增！
+        spawnInterval: 2200, // 縮短隕石刷新間隔
         words: [
             { char: "日", code: "A" }, { char: "月", code: "B" }, { char: "金", code: "C" },
             { char: "木", code: "D" }, { char: "水", code: "E" }, { char: "火", code: "F" },
@@ -24,8 +26,8 @@ const LEVEL_DATA = {
     2: {
         title: "第二關：常用合體字",
         description: "輸入 1 至 3 碼的常見合體連體字！",
-        speed: 1.5,
-        spawnInterval: 3000,
+        speed: 1.95, // 原始 1.5 倍提升
+        spawnInterval: 2800,
         words: [
             { char: "大", code: "K" },
             { char: "中", code: "L" },
@@ -36,37 +38,35 @@ const LEVEL_DATA = {
             { char: "天", code: "MK" },  // 一 + 大
             { char: "門", code: "AN" },  // 日 + 弓
             { char: "和", code: "HR" },  // 竹 + 口
-            { char: "車", code: "JWJ" }  // 十 + 田 + 十 (Page 6 課本範例)
+            { char: "車", code: "JWJ" }  // 十 + 田 + 十
         ]
     },
     3: {
-        title: "第三關：高難度手冊挑战",
+        title: "第三關：高難度手冊挑戰",
         description: "挑戰學習冊中 4 至 5 碼的複雜分體字！",
-        speed: 1.9,
-        spawnInterval: 3600,
+        speed: 2.5, // 原始 1.9 倍提升，帶來極限對決
+        spawnInterval: 3400,
         words: [
-            { char: "你", code: "ONF" },    // 人 弓 火 (手冊 P.7)
-            { char: "語", code: "YRMR" },   // 卜 口 一 口 (手冊 P.6)
-            { char: "愛", code: "BPHE" },   // 月 心 竹 水 (手冊 P.7)
-            { char: "謝", code: "YRHDI" },  // 卜 口 竹 木 戈 (手冊 P.8)
-            { char: "熱", code: "GIGF" },   // 土 戈 土 火 (手冊 P.7)
-            { char: "矮", code: "OKHDV" }   // 人 大 竹 木 女 (手冊 P.8 - 矢 + 委)
+            { char: "你", code: "ONF" },    // 人 弓 火
+            { char: "語", code: "YRMR" },   // 卜 口 一 口
+            { char: "愛", code: "BPHE" },   // 月 心 竹 水
+            { char: "謝", code: "YRHDI" },  // 卜 口 竹 木 戈
+            { char: "熱", code: "GIGF" },   // 土 戈 土 火
+            { char: "矮", code: "OKHDV" }   // 人 大 竹 木 女
         ]
     }
 };
 
-// 倉頡英文字母與中文名稱對照表 (提示條與緩衝區渲染用)
 const CANGJIE_ALPHABET = {
     'A': '日', 'B': '月', 'C': '金', 'D': '木', 'E': '水', 'F': '火', 'G': '土',
     'H': '竹', 'I': '戈', 'J': '十', 'K': '大', 'L': '中', 'M': '一', 'N': '弓',
     'O': '人', 'P': '心', 'Q': '手', 'R': '口', 'S': '尸', 'T': '廿', 'U': '山',
-    'V': '女', 'W': '田', 'Y': '卜', 'X': '難', 'Z': '重'
+    'V': '女', 'W': '田', 'Y': '卜'
 };
 
-// --- 2. AUDIO SYNTHESIZER (Web Audio API 原生即時合成音效) ---
+// --- 2. AUDIO SYNTHESIZER (免外部載入音效) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-// 鐳射發射高音滑音
 function playLaserSound() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
@@ -75,69 +75,61 @@ function playLaserSound() {
     gainNode.connect(audioCtx.destination);
     
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
-    osc.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.15);
+    osc.frequency.setValueAtTime(950, audioCtx.currentTime); 
+    osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.12);
     
-    gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
     
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.15);
+    osc.stop(audioCtx.currentTime + 0.12);
 }
 
-// 隕石爆炸震撼低頻噪音
 function playExplosionSound() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    const bufferSize = audioCtx.sampleRate * 0.35; 
+    const bufferSize = audioCtx.sampleRate * 0.3; 
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
-    
     for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1; // 白噪音
+        data[i] = Math.random() * 2 - 1; 
     }
-    
     const noiseSource = audioCtx.createBufferSource();
     noiseSource.buffer = buffer;
     
     const filter = audioCtx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(800, audioCtx.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.35);
+    filter.frequency.setValueAtTime(600, audioCtx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
     
     const gainNode = audioCtx.createGain();
     gainNode.gain.setValueAtTime(0.35, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
     
     noiseSource.connect(filter);
     filter.connect(gainNode);
     gainNode.connect(audioCtx.destination);
     
     noiseSource.start();
-    noiseSource.stop(audioCtx.currentTime + 0.35);
+    noiseSource.stop(audioCtx.currentTime + 0.3);
 }
 
-// 拼碼打錯時的提示低音
 function playErrorSound() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     osc.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(130, audioCtx.currentTime);
-    
-    gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-    
+    osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(0.18, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.2);
+    osc.stop(audioCtx.currentTime + 0.18);
 }
 
-// 關卡晉升大捷和弦音
 function playLevelUpSound() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    const notes = [261.63, 329.63, 392.00, 523.25]; // C major chord
+    const notes = [261.63, 329.63, 392.00, 523.25];
     notes.forEach((freq, idx) => {
         const osc = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
@@ -145,13 +137,13 @@ function playLevelUpSound() {
         gainNode.connect(audioCtx.destination);
         osc.frequency.value = freq;
         gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime + idx * 0.08);
-        gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + idx * 0.08 + 0.3);
+        gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + idx * 0.08 + 0.25);
         osc.start(audioCtx.currentTime + idx * 0.08);
-        osc.stop(audioCtx.currentTime + idx * 0.08 + 0.3);
+        osc.stop(audioCtx.currentTime + idx * 0.08 + 0.25);
     });
 }
 
-// --- 3. 遊戲核心狀態控管 ---
+// --- 3. 遊戲狀態控制 ---
 const state = {
     playerName: "",
     className: "",
@@ -179,14 +171,13 @@ const dom = {
     hudPlayer: document.getElementById('hud-player'),
     hudScore: document.getElementById('hud-score'),
     hudCombo: document.getElementById('hud-combo'),
-    hudShieldBar: document.getElementById('hud-shield-bar'),
     hudShieldPct: document.getElementById('hud-shield-pct'),
     hudLevel: document.getElementById('hud-level'),
     gameArea: document.getElementById('game-area'),
     playerShip: document.getElementById('player-ship'),
+    shipShield: document.getElementById('ship-shield'),
+    floatingBadge: document.getElementById('floating-input-badge'),
     laserCanvas: document.getElementById('laser-canvas'),
-    inputBufferContainer: document.getElementById('input-buffer-container'),
-    clearBufferBtn: document.getElementById('clear-buffer-btn'),
     endTitle: document.getElementById('end-title'),
     endScore: document.getElementById('end-score'),
     endAccuracy: document.getElementById('end-accuracy'),
@@ -195,7 +186,6 @@ const dom = {
     restartBtn: document.getElementById('restart-btn')
 };
 
-// 雷射特效畫布初始化與動態調尺寸
 const ctx = dom.laserCanvas.getContext('2d');
 function resizeCanvas() {
     dom.laserCanvas.width = dom.gameArea.clientWidth;
@@ -204,14 +194,13 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 
 
-// --- 4. 使用者互動事件 ---
+// --- 4. 鍵盤輸入事件與動態匹配 ---
 dom.startForm.addEventListener('submit', (e) => {
     e.preventDefault();
     state.playerName = dom.playerName.value.trim();
     state.className = dom.className.value.trim().toUpperCase();
     state.currentLevel = parseInt(dom.startLevel.value);
     
-    // 淡出開始畫面，淡入遊戲戰場
     dom.startScreen.classList.add('opacity-0');
     setTimeout(() => {
         dom.startScreen.classList.add('hidden');
@@ -228,27 +217,21 @@ dom.restartBtn.addEventListener('click', () => {
     resetGameState();
 });
 
-dom.clearBufferBtn.addEventListener('click', () => {
-    state.inputBuffer = [];
-    updateInputBufferUI();
-    // 重置所有隕石的高亮提示進度
-    state.activeEnemies.forEach(e => { e.highlightedIdx = 0; updateEnemyUI(e); });
-});
-
-// 全域鍵盤敲擊監聽處理
 window.addEventListener('keydown', (e) => {
     if (!state.isPlaying) return;
     
-    // 只捕獲 A-Z 字母
     const key = e.key.toUpperCase();
-    if (key.length !== 1 || key < 'A' || key > 'Z') {
-        if (e.key === 'Backspace') {
-            state.inputBuffer.pop();
-            updateInputBufferUI();
-            reEvaluateMatching();
-        }
+    
+    // 退格刪除鍵
+    if (e.key === 'Backspace') {
+        state.inputBuffer.pop();
+        updateFloatingInputUI();
+        reEvaluateMatching();
         return;
     }
+    
+    // 只接收 A-Z 英文字根
+    if (key.length !== 1 || key < 'A' || key > 'Z') return;
 
     state.keystrokesCount++;
     state.inputBuffer.push(key);
@@ -265,7 +248,7 @@ function reEvaluateMatching() {
     for (let enemy of state.activeEnemies) {
         if (enemy.code.startsWith(typedStr)) {
             matchFound = true;
-            enemy.highlightedIdx = typedStr.length; // 渲染藍色高亮
+            enemy.highlightedIdx = typedStr.length; 
             updateEnemyUI(enemy);
             
             if (enemy.code === typedStr) {
@@ -279,17 +262,14 @@ function reEvaluateMatching() {
     }
 
     if (completeMatch) {
-        // 匹配成功：擊落隕石！
         state.correctKeystrokesCount += completeMatch.code.length;
         shootLaserAt(completeMatch);
         destroyEnemy(completeMatch);
         state.inputBuffer = []; 
     } else if (matchFound) {
-        // 部分匹配，提供鍵音回饋
         state.correctKeystrokesCount++;
         playLaserSound();
     } else {
-        // 拼錯，清空並扣除 Combo 連擊
         playErrorSound();
         state.combo = 0;
         dom.hudCombo.textContent = state.combo;
@@ -297,11 +277,27 @@ function reEvaluateMatching() {
         state.activeEnemies.forEach(e => { e.highlightedIdx = 0; updateEnemyUI(e); });
     }
     
-    updateInputBufferUI();
+    updateFloatingInputUI();
+}
+
+// 更新浮動在戰機正下方的跟隨緩衝指示器
+function updateFloatingInputUI() {
+    if (state.inputBuffer.length === 0) {
+        dom.floatingBadge.textContent = "WAITING...";
+        dom.floatingBadge.className = "mt-4 bg-slate-900/90 border border-slate-700 px-3 py-1 rounded-full text-[10px] font-mono font-bold text-slate-400 shadow-none whitespace-nowrap min-w-[80px] text-center transition-all";
+        return;
+    }
+    
+    // 將英文映射成對應的中文倉頡字根
+    const chCodes = state.inputBuffer.map(k => CANGJIE_ALPHABET[k] || k).join(' ');
+    const engCodes = state.inputBuffer.join('');
+    
+    dom.floatingBadge.textContent = `${chCodes} (${engCodes})`;
+    dom.floatingBadge.className = "mt-4 bg-slate-900 border-2 border-cyan-400 px-3 py-1 rounded-full text-xs font-mono font-bold text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.6)] scale-110 whitespace-nowrap min-w-[100px] text-center transition-all";
 }
 
 
-// --- 5. 遊戲運行機制與物理引擎 ---
+// --- 5. 遊戲主循環與物理下落 ---
 function resetGameState() {
     state.score = 0;
     state.combo = 0;
@@ -321,20 +317,18 @@ function startGame() {
     dom.hudPlayer.textContent = `${state.className} - ${state.playerName}`;
     dom.hudScore.textContent = state.score;
     dom.hudCombo.textContent = state.combo;
-    updateShieldBar();
+    updateShieldVisuals();
     dom.hudLevel.textContent = LEVEL_DATA[state.currentLevel].title;
     
     playLevelUpSound();
     
-    // 啟動主物理渲染循環
     state.gameLoopId = requestAnimationFrame(gameUpdate);
-    // 啟動隕石產生器
     startEnemySpawner();
+    updateFloatingInputUI();
 }
 
 function startEnemySpawner() {
     if (state.spawnIntervalId) clearInterval(state.spawnIntervalId);
-    
     const config = LEVEL_DATA[state.currentLevel];
     state.spawnIntervalId = setInterval(() => {
         if (!state.isPlaying) return;
@@ -342,7 +336,6 @@ function startEnemySpawner() {
     }, config.spawnInterval);
 }
 
-// 動態繪製新降臨的隕石
 function spawnEnemy() {
     const config = LEVEL_DATA[state.currentLevel];
     const randomWord = config.words[Math.floor(Math.random() * config.words.length)];
@@ -350,21 +343,18 @@ function spawnEnemy() {
     const enemyEl = document.createElement('div');
     enemyEl.className = 'absolute flex flex-col items-center z-10 select-none';
     
-    // 限制在可見橫幅內生成，避免超出右邊界
     const spawnWidth = dom.gameArea.clientWidth - 100;
     const leftPos = Math.max(20, Math.random() * spawnWidth);
     enemyEl.style.left = `${leftPos}px`;
     enemyEl.style.top = `-80px`;
     
-    // 圓形發光外殼
     const bubble = document.createElement('div');
-    bubble.className = 'enemy-glowing w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center text-3xl font-bold border-2 border-cyan-500/80 text-white select-none shadow-lg cursor-default';
+    bubble.className = 'enemy-glowing w-16 h-16 rounded-full bg-slate-900/95 flex items-center justify-center text-3xl font-extrabold border-2 border-red-500/80 text-white select-none shadow-lg cursor-default';
     bubble.textContent = randomWord.char;
     enemyEl.appendChild(bubble);
     
-    // 倉頡字母拆碼拼音輔助面板
     const hintBar = document.createElement('div');
-    hintBar.className = 'mt-1 bg-slate-950/80 border border-slate-800 rounded px-2 py-0.5 flex gap-1 justify-center min-w-[70px]';
+    hintBar.className = 'mt-1 bg-slate-950/90 border border-slate-800 rounded-md px-2 py-0.5 flex gap-1 justify-center min-w-[70px] shadow-md';
     
     for (let i = 0; i < randomWord.code.length; i++) {
         const span = document.createElement('span');
@@ -373,7 +363,6 @@ function spawnEnemy() {
         hintBar.appendChild(span);
     }
     enemyEl.appendChild(hintBar);
-    
     dom.gameArea.appendChild(enemyEl);
     
     state.activeEnemies.push({
@@ -383,7 +372,7 @@ function spawnEnemy() {
         code: randomWord.code,
         x: leftPos + 32,
         y: -40,
-        speed: config.speed + (Math.random() * 0.4 - 0.2), // 稍微震盪的速度更具挑戰性
+        speed: config.speed + (Math.random() * 0.4 - 0.2), 
         highlightedIdx: 0
     });
 }
@@ -392,40 +381,23 @@ function updateEnemyUI(enemy) {
     const spans = enemy.hintBar.querySelectorAll('span');
     spans.forEach((span, idx) => {
         if (idx < enemy.highlightedIdx) {
-            span.className = 'text-xs font-mono text-cyan-400 font-extrabold';
+            span.className = 'text-xs font-mono text-cyan-400 font-black';
         } else {
             span.className = 'text-xs font-mono text-slate-500';
         }
     });
 }
 
-function updateInputBufferUI() {
-    dom.inputBufferContainer.innerHTML = '';
-    if (state.inputBuffer.length === 0) {
-        dom.inputBufferContainer.innerHTML = '<span class="text-slate-500 text-sm italic">等待輸入...</span>';
-        return;
-    }
-    
-    state.inputBuffer.forEach(key => {
-        const item = document.createElement('span');
-        item.className = 'bg-cyan-500 text-slate-950 px-2 py-0.5 rounded font-bold font-mono text-sm';
-        item.textContent = `${CANGJIE_ALPHABET[key]} (${key})`;
-        dom.inputBufferContainer.appendChild(item);
-    });
-}
-
-// 物理降落更新
 function gameUpdate() {
     if (!state.isPlaying) return;
     
-    const limitY = dom.gameArea.clientHeight - 80;
+    const limitY = dom.gameArea.clientHeight - 130; // 稍稍提高，在飛船護盾外阻截隕石
     
     for (let i = state.activeEnemies.length - 1; i >= 0; i--) {
         const enemy = state.activeEnemies[i];
         enemy.y += enemy.speed;
         enemy.el.style.top = `${enemy.y}px`;
         
-        // 撞擊防線扣血
         if (enemy.y >= limitY) {
             triggerShieldDamage();
             enemy.el.remove();
@@ -439,7 +411,7 @@ function gameUpdate() {
     state.gameLoopId = requestAnimationFrame(gameUpdate);
 }
 
-// 雷射軌跡動態繪製
+// 鐳射發射與繪製
 let laserDrawing = null;
 function shootLaserAt(enemy) {
     playLaserSound();
@@ -447,8 +419,8 @@ function shootLaserAt(enemy) {
     const shipRect = dom.playerShip.getBoundingClientRect();
     const areaRect = dom.gameArea.getBoundingClientRect();
     
-    const startX = shipRect.left - areaRect.left + 24; 
-    const startY = shipRect.top - areaRect.top;
+    const startX = shipRect.left - areaRect.left + 32; 
+    const startY = shipRect.top - areaRect.top + 10;
     const targetX = enemy.x;
     const targetY = enemy.y + 32;
     
@@ -459,30 +431,27 @@ function drawLasers() {
     ctx.clearRect(0, 0, dom.laserCanvas.width, dom.laserCanvas.height);
     if (!laserDrawing) return;
     
-    // 外層光暈
     ctx.beginPath();
     ctx.moveTo(laserDrawing.startX, laserDrawing.startY);
     ctx.lineTo(laserDrawing.targetX, laserDrawing.targetY);
     ctx.strokeStyle = `rgba(34, 211, 238, ${laserDrawing.life})`;
-    ctx.lineWidth = 4 * laserDrawing.life;
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#06b6d4';
+    ctx.lineWidth = 5 * laserDrawing.life;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = '#22d3ee';
     ctx.stroke();
     
-    // 內核白光
     ctx.beginPath();
     ctx.moveTo(laserDrawing.startX, laserDrawing.startY);
     ctx.lineTo(laserDrawing.targetX, laserDrawing.targetY);
     ctx.strokeStyle = `rgba(255, 255, 255, ${laserDrawing.life})`;
-    ctx.lineWidth = 1.5 * laserDrawing.life;
+    ctx.lineWidth = 2 * laserDrawing.life;
     ctx.shadowBlur = 0;
     ctx.stroke();
     
-    laserDrawing.life -= 0.12;
+    laserDrawing.life -= 0.14;
     if (laserDrawing.life <= 0) laserDrawing = null;
 }
 
-// 隕石爆炸與分數累算
 function destroyEnemy(enemy) {
     playExplosionSound();
     createParticles(enemy.x, enemy.y + 32);
@@ -498,7 +467,6 @@ function destroyEnemy(enemy) {
     dom.hudScore.textContent = state.score;
     dom.hudCombo.textContent = state.combo;
     
-    // 分數累加每 150 分，自動解鎖下一關
     if (state.score > 0 && state.score % 150 === 0 && state.currentLevel < 3) {
         state.currentLevel++;
         dom.hudLevel.textContent = LEVEL_DATA[state.currentLevel].title;
@@ -507,21 +475,20 @@ function destroyEnemy(enemy) {
     }
 }
 
-// 原生 Canvas 碎片粒子系統
+// 爆炸碎片
 let particles = [];
 function createParticles(x, y) {
-    const particleCount = 15;
-    const colors = ['#06b6d4', '#22d3ee', '#38bdf8', '#f43f5e', '#ffffff'];
-    
+    const particleCount = 20;
+    const colors = ['#22d3ee', '#ec4899', '#f43f5e', '#f59e0b', '#ffffff'];
     for (let i = 0; i < particleCount; i++) {
         particles.push({
             x: x, y: y,
-            vx: (Math.random() - 0.5) * 8,
-            vy: (Math.random() - 0.5) * 8,
+            vx: (Math.random() - 0.5) * 9,
+            vy: (Math.random() - 0.5) * 9,
             radius: Math.random() * 3 + 2,
             color: colors[Math.floor(Math.random() * colors.length)],
             alpha: 1.0,
-            decay: Math.random() * 0.05 + 0.02
+            decay: Math.random() * 0.06 + 0.03
         });
     }
     
@@ -532,17 +499,14 @@ function createParticles(x, y) {
             p.x += p.vx;
             p.y += p.vy;
             p.alpha -= p.decay;
-            
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
             ctx.fillStyle = p.color;
             ctx.globalAlpha = Math.max(0, p.alpha);
             ctx.fill();
-            
             if (p.alpha <= 0) particles.splice(idx, 1);
         });
         ctx.restore();
-        
         if (particles.length > 0 && state.isPlaying) {
             requestAnimationFrame(animateParticles);
         }
@@ -550,31 +514,56 @@ function createParticles(x, y) {
     animateParticles();
 }
 
+// --- 6. 能量護盾受擊與動畫美化控管 ---
 function triggerShieldDamage() {
-    state.shield = Math.max(0, state.shield - 15);
-    updateShieldBar();
+    state.shield = Math.max(0, state.shield - 20); // 每次扣除 20% 防護
+    updateShieldVisuals();
     
-    // 受傷畫面劇烈搖晃
+    // 1. 防護罩暴縮閃光特效
+    dom.shipShield.classList.remove('shield-hit');
+    void dom.shipShield.offsetWidth; // 強制重繪
+    dom.shipShield.classList.add('shield-hit');
+    
+    // 2. 主視窗震動
     dom.gameScreen.classList.add('shake-screen');
-    setTimeout(() => { dom.gameScreen.classList.remove('shake-screen'); }, 400);
+    setTimeout(() => { dom.gameScreen.classList.remove('shake-screen'); }, 300);
     
     playErrorSound();
-    if (state.shield <= 0) endGame();
-}
-
-function updateShieldBar() {
-    dom.hudShieldBar.style.width = `${state.shield}%`;
-    dom.hudShieldPct.textContent = `${state.shield}%`;
-    if (state.shield > 50) {
-        dom.hudShieldBar.className = "bg-gradient-to-r from-emerald-500 to-green-400 h-full w-full transition-all duration-300";
-    } else if (state.shield > 20) {
-        dom.hudShieldBar.className = "bg-gradient-to-r from-yellow-500 to-amber-400 h-full w-full transition-all duration-300";
-    } else {
-        dom.hudShieldBar.className = "bg-gradient-to-r from-red-600 to-red-500 h-full w-full transition-all duration-300";
+    
+    if (state.shield <= 0) {
+        endGame();
     }
 }
 
-// 結束遊戲及本地排行榜存取
+// 實時改變防護罩 (Shield Bubble) 的粗細（Thin）、顏色與霓虹發光度
+function updateShieldVisuals() {
+    dom.hudShieldPct.textContent = `${state.shield}%`;
+    
+    // 依比例動態計算護盾線條粗細 (邊框厚度) - 滿血時為 6px，快爆時減至 1px
+    const borderWidth = Math.max(1, (state.shield / 100) * 6);
+    dom.shipShield.style.borderWidth = `${borderWidth}px`;
+    
+    // 動態變更色調及外發光效果
+    if (state.shield > 60) {
+        // 滿血：健康的 青色光芒 (Cyan)
+        dom.shipShield.style.borderColor = `rgba(34, 211, 238, ${state.shield / 100})`;
+        dom.shipShield.style.boxShadow = `0 0 ${12 + (state.shield / 100) * 15}px rgba(34, 211, 238, 0.7)`;
+        dom.hudShieldPct.className = "font-mono text-sm font-bold text-cyan-400";
+    } else if (state.shield > 25) {
+        // 中度受損：警告的 橙黃色光芒 (Orange/Yellow)
+        dom.shipShield.style.borderColor = `rgba(245, 158, 11, ${state.shield / 100})`;
+        dom.shipShield.style.boxShadow = `0 0 ${8 + (state.shield / 100) * 12}px rgba(245, 158, 11, 0.5)`;
+        dom.hudShieldPct.className = "font-mono text-sm font-bold text-amber-500";
+    } else {
+        // 瀕死危急：危急的 深紅色極薄光芒 (Red / Thin)
+        dom.shipShield.style.borderColor = `rgba(239, 68, 68, ${Math.max(0.3, state.shield / 100)})`;
+        dom.shipShield.style.boxShadow = `0 0 8px rgba(239, 68, 68, 0.4)`;
+        dom.hudShieldPct.className = "font-mono text-sm font-bold text-red-500 animate-pulse";
+    }
+}
+
+
+// --- 7. 排行榜本地儲存存取 ---
 function endGame() {
     state.isPlaying = false;
     cancelAnimationFrame(state.gameLoopId);
@@ -594,7 +583,6 @@ function endGame() {
     saveAndShowLeaderboard(accuracy);
 }
 
-// 儲存至瀏覽器 localStorage
 function saveAndShowLeaderboard(accuracy) {
     const newRecord = {
         player_name: state.playerName,
@@ -603,20 +591,13 @@ function saveAndShowLeaderboard(accuracy) {
         accuracy: parseFloat(accuracy)
     };
     
-    // 讀取舊有數據
     let localLeaderboard = JSON.parse(localStorage.getItem('typing_leaderboard') || '[]');
-    
-    // 壓入新紀錄
     localLeaderboard.push(newRecord);
-    
-    // 排行榜排序：由高至低，取前 10 名
     localLeaderboard.sort((a, b) => b.score - a.score);
     localLeaderboard = localLeaderboard.slice(0, 10);
     
-    // 寫回
     localStorage.setItem('typing_leaderboard', JSON.stringify(localLeaderboard));
     
-    // 渲染 UI
     dom.leaderboardBody.innerHTML = '';
     localLeaderboard.forEach((record, idx) => {
         const tr = document.createElement('tr');
