@@ -5,14 +5,13 @@
  * 2. 統一 Canvas 渲染管線至 gameUpdate 循環中，完全消除畫面閃爍。
  * 3. 移除第二關的單字母字（如大、中），確保第二關 100% 是 2-3 碼的多碼合體字！
  */
-
-// --- 1. 三關字庫設定 (第一關速度已調快 1.3x) ---
+// --- 1. 三關字庫設定 (第一關速度再調快 1.3x，第二關字庫擴充至 20 字) ---
 const LEVEL_DATA = {
     1: {
         title: "第一關：倉頡基本字根",
         description: "單一按鍵，熟記鍵盤與字根配對！",
-        speed: 1.45, // 速度調快 1.3x
-        spawnInterval: 2200, 
+        speed: 1.95, // 【優化】再次大幅提速！從 1.45 提升至 1.95，下落更激爽有挑戰性
+        spawnInterval: 1900, // 隕石刷新間隔同步縮短，加快節奏
         words: [
             { char: "日", code: "A" }, { char: "月", code: "B" }, { char: "金", code: "C" },
             { char: "木", code: "D" }, { char: "水", code: "E" }, { char: "火", code: "F" },
@@ -27,10 +26,10 @@ const LEVEL_DATA = {
     2: {
         title: "第二關：常用合體字",
         description: "輸入 2 至 3 碼的常用合體連體字！",
-        speed: 1.95, 
-        spawnInterval: 2800,
+        speed: 2.3, // 【優化】速度等比提速至 2.3
+        spawnInterval: 2600,
         words: [
-            // 已剔除單碼字，確保關卡難度分明！
+            // 【優化】字庫大幅擴充至 20 字，徹底避免重複，難度梯度更科學
             { char: "明", code: "AB" },  // 日 + 月
             { char: "林", code: "DD" },  // 木 + 木
             { char: "因", code: "WK" },  // 田 + 大
@@ -38,14 +37,26 @@ const LEVEL_DATA = {
             { char: "天", code: "MK" },  // 一 + 大
             { char: "門", code: "AN" },  // 日 + 弓
             { char: "和", code: "HR" },  // 竹 + 口
-            { char: "車", code: "JWJ" }  // 十 + 田 + 十
+            { char: "車", code: "JWJ" }, // 十 + 田 + 十
+            { char: "早", code: "AM" },  // 日 + 一
+            { char: "晶", code: "AAA" }, // 日 + 日 + 日
+            { char: "森", code: "DDD" }, // 木 + 木 + 木
+            { char: "里", code: "WG" },  // 田 + 土
+            { char: "估", code: "OR" },  // 人 + 口
+            { char: "休", code: "OD" },  // 人 + 木
+            { char: "叭", code: "RC" },  // 口 + 金
+            { char: "打", code: "QG" },  // 手 + 土
+            { char: "江", code: "EQ" },  // 水 + 手
+            { char: "炎", code: "FF" },  // 火 + 火
+            { char: "卡", code: "YMY" }, // 卜 + 一 + 卜
+            { char: "古", code: "JR" }   // 十 + 口
         ]
     },
     3: {
         title: "第三關：高難度手冊挑戰",
         description: "挑戰學習冊中 4 至 5 碼的複雜分體字！",
-        speed: 2.5, 
-        spawnInterval: 3400,
+        speed: 2.8, // 【優化】最終決戰速度等比調快至 2.8
+        spawnInterval: 3200,
         words: [
             { char: "你", code: "ONF" },    // 人 弓 火
             { char: "語", code: "YRMR" },   // 卜 口 一 口
@@ -56,6 +67,7 @@ const LEVEL_DATA = {
         ]
     }
 };
+
 
 const CANGJIE_ALPHABET = {
     'A': '日', 'B': '月', 'C': '金', 'D': '木', 'E': '水', 'F': '火', 'G': '土',
