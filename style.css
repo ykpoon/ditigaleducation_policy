@@ -1,0 +1,66 @@
+/* 太空背景星宿 */
+.stars, .twinkling {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.stars {
+  background: #020617 url('https://raw.githubusercontent.com/tengbao/vanta/master/gallery/stars.png') repeat top center;
+  z-index: 0;
+}
+
+.twinkling {
+  background: transparent url('https://raw.githubusercontent.com/tengbao/vanta/master/gallery/twinkling.png') repeat top center;
+  z-index: 1;
+  animation: move-twink-back 200s linear infinite;
+}
+
+@keyframes move-twink-back {
+  from { background-position: 0 0; }
+  to { background-position: -10000px 5000px; }
+}
+
+/* 戰機引擎火噴射 */
+.ship-thruster {
+  animation: thrust 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes thrust {
+  from {
+    height: 12px;
+    opacity: 0.8;
+  }
+  to {
+    height: 24px;
+    opacity: 1;
+    filter: drop-shadow(0 0 8px #ef4444);
+  }
+}
+
+/* 螢幕震動受擊效果 */
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  20%, 60% { transform: translate(-4px, 4px); }
+  40%, 80% { transform: translate(4px, -4px); }
+}
+
+.shake-screen {
+  animation: shake 0.2s ease-in-out 2;
+}
+
+/* 隕石發光呼吸效果 */
+.enemy-glowing {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  transition: transform 0.1s ease;
+}
+
+.enemy-glowing:hover {
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.8);
+}
