@@ -1,17 +1,21 @@
 /**
- * 倉頡打字太空射擊遊戲 - 戰機重置美化版 (Local Version)
- * 1. 移除底部緩衝欄 -> 改為戰機跟隨式霓虹浮動指示器
- * 2. 第一關下落速度大幅提速 1.3 倍
- * 3. 動態「圓形護盾罩」厚度與顏色變化
+ * 倉頡打字太空射擊遊戲 - 最終整合美化版 (Complete Local Version)
+ * 特色：
+ * 1. 100% 純前端，排行榜使用瀏覽器 LocalStorage 儲存。
+ * 2. 移除所有底部輸入欄，改為緊跟在戰機下方的「霓虹浮動輸入指示器」。
+ * 3. 節奏極速：第一關下落速度提升 1.3 倍（基礎速 1.45），打字更有快感。
+ * 4. 【核心改進】每關「精準打滿 10 個字」立刻自動過關/晉級，絕不拖泥帶水！
+ * 5. 戰機配備「實體圓形能量護盾罩」，受損時護盾會動態變薄（Thin）並由青轉紅。
+ * 6. 原生 Web Audio API 即時合成高科技鐳射聲與震撼爆炸聲，無須加載外部音訊。
  */
 
-// --- 1. 三關字庫設定 (速度加快 1.3 倍) ---
+// --- 1. 三關字庫設定 (第一關速度已調快 1.3 倍) ---
 const LEVEL_DATA = {
     1: {
         title: "第一關：倉頡基本字根",
         description: "單一按鍵，熟記鍵盤與字根配對！",
-        speed: 1.45, // 原始 1.1 的 1.3 倍 -> 約 1.45，難度與爽快感大增！
-        spawnInterval: 2200, // 縮短隕石刷新間隔
+        speed: 1.45, // 速度調快 1.3x，節奏更緊湊
+        spawnInterval: 2200, 
         words: [
             { char: "日", code: "A" }, { char: "月", code: "B" }, { char: "金", code: "C" },
             { char: "木", code: "D" }, { char: "水", code: "E" }, { char: "火", code: "F" },
@@ -26,33 +30,33 @@ const LEVEL_DATA = {
     2: {
         title: "第二關：常用合體字",
         description: "輸入 1 至 3 碼的常見合體連體字！",
-        speed: 1.95, // 原始 1.5 倍提升
+        speed: 1.95, 
         spawnInterval: 2800,
         words: [
             { char: "大", code: "K" },
             { char: "中", code: "L" },
-            { char: "明", code: "AB" },  // 日 + 月
-            { char: "林", code: "DD" },  // 木 + 木
-            { char: "因", code: "WK" },  // 田 + 大
-            { char: "目", code: "BU" },  // 月 + 山
-            { char: "天", code: "MK" },  // 一 + 大
-            { char: "門", code: "AN" },  // 日 + 弓
-            { char: "和", code: "HR" },  // 竹 + 口
-            { char: "車", code: "JWJ" }  // 十 + 田 + 十
+            { char: "明", code: "AB" },  
+            { char: "林", code: "DD" },  
+            { char: "因", code: "WK" },  
+            { char: "目", code: "BU" },  
+            { char: "天", code: "MK" },  
+            { char: "門", code: "AN" },  
+            { char: "和", code: "HR" },  
+            { char: "車", code: "JWJ" }  
         ]
     },
     3: {
         title: "第三關：高難度手冊挑戰",
         description: "挑戰學習冊中 4 至 5 碼的複雜分體字！",
-        speed: 2.5, // 原始 1.9 倍提升，帶來極限對決
+        speed: 2.5, 
         spawnInterval: 3400,
         words: [
-            { char: "你", code: "ONF" },    // 人 弓 火
-            { char: "語", code: "YRMR" },   // 卜 口 一 口
-            { char: "愛", code: "BPHE" },   // 月 心 竹 水
-            { char: "謝", code: "YRHDI" },  // 卜 口 竹 木 戈
-            { char: "熱", code: "GIGF" },   // 土 戈 土 火
-            { char: "矮", code: "OKHDV" }   // 人 大 竹 木 女
+            { char: "你", code: "ONF" },    // 人 弓 火 (手冊 P.7)
+            { char: "語", code: "YRMR" },   // 卜 口 一 口 (手冊 P.6)
+            { char: "愛", code: "BPHE" },   // 月 心 竹 水 (手冊 P.7)
+            { char: "謝", code: "YRHDI" },  // 卜 口 竹 木 戈 (手冊 P.8)
+            { char: "熱", code: "GIGF" },   // 土 戈 土 火 (手冊 P.7)
+            { char: "矮", code: "OKHDV" }   // 人 大 竹 木 女 (手冊 P.8)
         ]
     }
 };
@@ -64,7 +68,7 @@ const CANGJIE_ALPHABET = {
     'V': '女', 'W': '田', 'Y': '卜'
 };
 
-// --- 2. AUDIO SYNTHESIZER (免外部載入音效) ---
+// --- 2. AUDIO SYNTHESIZER (Web Audio API 原生合成器) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function playLaserSound() {
@@ -73,14 +77,11 @@ function playLaserSound() {
     const gainNode = audioCtx.createGain();
     osc.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(950, audioCtx.currentTime); 
     osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.12);
-    
     gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
-    
     osc.start();
     osc.stop(audioCtx.currentTime + 0.12);
 }
@@ -95,20 +96,16 @@ function playExplosionSound() {
     }
     const noiseSource = audioCtx.createBufferSource();
     noiseSource.buffer = buffer;
-    
     const filter = audioCtx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(600, audioCtx.currentTime);
     filter.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
-    
     const gainNode = audioCtx.createGain();
     gainNode.gain.setValueAtTime(0.35, audioCtx.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-    
     noiseSource.connect(filter);
     filter.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    
     noiseSource.start();
     noiseSource.stop(audioCtx.currentTime + 0.3);
 }
@@ -155,6 +152,7 @@ const state = {
     inputBuffer: [],
     keystrokesCount: 0,
     correctKeystrokesCount: 0,
+    wordsDestroyedInLevel: 0, // 追蹤當前關卡擊破的隕石數量，打滿 10 個字過關
     gameLoopId: null,
     spawnIntervalId: null,
     isPlaying: false
@@ -222,7 +220,6 @@ window.addEventListener('keydown', (e) => {
     
     const key = e.key.toUpperCase();
     
-    // 退格刪除鍵
     if (e.key === 'Backspace') {
         state.inputBuffer.pop();
         updateFloatingInputUI();
@@ -230,7 +227,6 @@ window.addEventListener('keydown', (e) => {
         return;
     }
     
-    // 只接收 A-Z 英文字根
     if (key.length !== 1 || key < 'A' || key > 'Z') return;
 
     state.keystrokesCount++;
@@ -239,7 +235,6 @@ window.addEventListener('keydown', (e) => {
     reEvaluateMatching();
 });
 
-// 比對輸入暫存與場上隕石
 function reEvaluateMatching() {
     const typedStr = state.inputBuffer.join('');
     let matchFound = false;
@@ -280,7 +275,6 @@ function reEvaluateMatching() {
     updateFloatingInputUI();
 }
 
-// 更新浮動在戰機正下方的跟隨緩衝指示器
 function updateFloatingInputUI() {
     if (state.inputBuffer.length === 0) {
         dom.floatingBadge.textContent = "WAITING...";
@@ -288,7 +282,6 @@ function updateFloatingInputUI() {
         return;
     }
     
-    // 將英文映射成對應的中文倉頡字根
     const chCodes = state.inputBuffer.map(k => CANGJIE_ALPHABET[k] || k).join(' ');
     const engCodes = state.inputBuffer.join('');
     
@@ -297,11 +290,12 @@ function updateFloatingInputUI() {
 }
 
 
-// --- 5. 遊戲主循環與物理下落 ---
+// --- 5. 遊戲主循環與過關判定 (打滿10個字進下一關) ---
 function resetGameState() {
     state.score = 0;
     state.combo = 0;
     state.shield = 100;
+    state.wordsDestroyedInLevel = 0; // 重置本關擊破數
     state.activeEnemies.forEach(e => e.el.remove());
     state.activeEnemies = [];
     state.inputBuffer = [];
@@ -391,7 +385,7 @@ function updateEnemyUI(enemy) {
 function gameUpdate() {
     if (!state.isPlaying) return;
     
-    const limitY = dom.gameArea.clientHeight - 130; // 稍稍提高，在飛船護盾外阻截隕石
+    const limitY = dom.gameArea.clientHeight - 130; 
     
     for (let i = state.activeEnemies.length - 1; i >= 0; i--) {
         const enemy = state.activeEnemies[i];
@@ -411,11 +405,9 @@ function gameUpdate() {
     state.gameLoopId = requestAnimationFrame(gameUpdate);
 }
 
-// 鐳射發射與繪製
 let laserDrawing = null;
 function shootLaserAt(enemy) {
     playLaserSound();
-    
     const shipRect = dom.playerShip.getBoundingClientRect();
     const areaRect = dom.gameArea.getBoundingClientRect();
     
@@ -452,6 +444,7 @@ function drawLasers() {
     if (laserDrawing.life <= 0) laserDrawing = null;
 }
 
+// 擊破隕石
 function destroyEnemy(enemy) {
     playExplosionSound();
     createParticles(enemy.x, enemy.y + 32);
@@ -467,12 +460,58 @@ function destroyEnemy(enemy) {
     dom.hudScore.textContent = state.score;
     dom.hudCombo.textContent = state.combo;
     
-    if (state.score > 0 && state.score % 150 === 0 && state.currentLevel < 3) {
-        state.currentLevel++;
-        dom.hudLevel.textContent = LEVEL_DATA[state.currentLevel].title;
-        playLevelUpSound();
-        startEnemySpawner();
+    // 【核心邏輯】當前關卡擊破數增加
+    state.wordsDestroyedInLevel++;
+    
+    // 只要成功擊落 10 個字，立刻自動升級
+    if (state.wordsDestroyedInLevel >= 10) {
+        if (state.currentLevel < 3) {
+            state.currentLevel++;
+            state.wordsDestroyedInLevel = 0; // 新關卡重置計數
+            dom.hudLevel.textContent = LEVEL_DATA[state.currentLevel].title;
+            
+            playLevelUpSound();
+            showLevelUpBanner(); // 呼叫彈出升級大橫幅
+            startEnemySpawner();
+        } else {
+            // 第三關也順利擊破 10 個字 -> 完美通關
+            endGame(true); 
+        }
     }
+}
+
+// 動態彈出毛玻璃 Level Up 橫幅
+function showLevelUpBanner() {
+    const banner = document.createElement('div');
+    banner.className = "absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/70 backdrop-blur-md pointer-events-none transition-all duration-500";
+    banner.innerHTML = `
+        <div class="text-center scale-75 animate-bounce">
+            <h2 class="text-5xl font-black text-cyan-400 drop-shadow-[0_0_25px_rgba(6,182,212,0.8)] tracking-widest">
+                LEVEL UP!
+            </h2>
+            <p class="text-xl font-bold text-white mt-3 tracking-wider">
+                解鎖任務：${LEVEL_DATA[state.currentLevel].title}
+            </p>
+            <p class="text-sm text-slate-400 mt-2 italic">
+                ${LEVEL_DATA[state.currentLevel].description}
+            </p>
+        </div>
+    `;
+    
+    dom.gameArea.appendChild(banner);
+    
+    // 清除畫面上現有的舊隕石，讓新關卡有一個乾淨的開局
+    state.activeEnemies.forEach(e => {
+        createParticles(e.x, e.y + 32);
+        e.el.remove();
+    });
+    state.activeEnemies = [];
+    
+    // 1.8 秒後自動縮小並淡出移除
+    setTimeout(() => {
+        banner.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => banner.remove(), 500);
+    }, 1800);
 }
 
 // 爆炸碎片
@@ -514,57 +553,52 @@ function createParticles(x, y) {
     animateParticles();
 }
 
-// --- 6. 能量護盾受擊與動畫美化控管 ---
+// --- 6. 能量護盾受擊與美化控制 ---
 function triggerShieldDamage() {
-    state.shield = Math.max(0, state.shield - 20); // 每次扣除 20% 防護
+    state.shield = Math.max(0, state.shield - 20); 
     updateShieldVisuals();
     
-    // 1. 防護罩暴縮閃光特效
     dom.shipShield.classList.remove('shield-hit');
-    void dom.shipShield.offsetWidth; // 強制重繪
+    void dom.shipShield.offsetWidth; 
     dom.shipShield.classList.add('shield-hit');
     
-    // 2. 主視窗震動
     dom.gameScreen.classList.add('shake-screen');
     setTimeout(() => { dom.gameScreen.classList.remove('shake-screen'); }, 300);
     
     playErrorSound();
     
     if (state.shield <= 0) {
-        endGame();
+        endGame(false);
     }
 }
 
-// 實時改變防護罩 (Shield Bubble) 的粗細（Thin）、顏色與霓虹發光度
 function updateShieldVisuals() {
     dom.hudShieldPct.textContent = `${state.shield}%`;
     
-    // 依比例動態計算護盾線條粗細 (邊框厚度) - 滿血時為 6px，快爆時減至 1px
+    // 動態護盾粗細：滿能量 6px，快爆時只有 1px (Thin)
     const borderWidth = Math.max(1, (state.shield / 100) * 6);
     dom.shipShield.style.borderWidth = `${borderWidth}px`;
     
-    // 動態變更色調及外發光效果
     if (state.shield > 60) {
-        // 滿血：健康的 青色光芒 (Cyan)
+        // 滿狀態：厚實的青藍色霓虹 (Cyan)
         dom.shipShield.style.borderColor = `rgba(34, 211, 238, ${state.shield / 100})`;
         dom.shipShield.style.boxShadow = `0 0 ${12 + (state.shield / 100) * 15}px rgba(34, 211, 238, 0.7)`;
         dom.hudShieldPct.className = "font-mono text-sm font-bold text-cyan-400";
     } else if (state.shield > 25) {
-        // 中度受損：警告的 橙黃色光芒 (Orange/Yellow)
+        // 中等狀態：橙色警告
         dom.shipShield.style.borderColor = `rgba(245, 158, 11, ${state.shield / 100})`;
         dom.shipShield.style.boxShadow = `0 0 ${8 + (state.shield / 100) * 12}px rgba(245, 158, 11, 0.5)`;
         dom.hudShieldPct.className = "font-mono text-sm font-bold text-amber-500";
     } else {
-        // 瀕死危急：危急的 深紅色極薄光芒 (Red / Thin)
+        // 危急狀態：極薄紅色邊框 (Thin)
         dom.shipShield.style.borderColor = `rgba(239, 68, 68, ${Math.max(0.3, state.shield / 100)})`;
         dom.shipShield.style.boxShadow = `0 0 8px rgba(239, 68, 68, 0.4)`;
         dom.hudShieldPct.className = "font-mono text-sm font-bold text-red-500 animate-pulse";
     }
 }
 
-
-// --- 7. 排行榜本地儲存存取 ---
-function endGame() {
+// --- 7. 排行榜本地儲存 (LocalStorage) ---
+function endGame(isVictory = false) {
     state.isPlaying = false;
     cancelAnimationFrame(state.gameLoopId);
     clearInterval(state.spawnIntervalId);
@@ -579,6 +613,18 @@ function endGame() {
     dom.endScore.textContent = state.score;
     dom.endAccuracy.textContent = `${accuracy}%`;
     dom.endLevel.textContent = state.currentLevel;
+    
+    const endBox = dom.endScreen.querySelector('.bg-slate-900\\/95');
+    if (isVictory) {
+        dom.endTitle.textContent = "🏆 完美通關！拯救星系！";
+        dom.endTitle.className = "text-4xl font-black text-yellow-400 drop-shadow-[0_0_20px_rgba(234,179,8,0.7)] tracking-widest";
+        endBox.style.borderColor = "rgba(234, 179, 8, 0.7)"; 
+        playLevelUpSound(); 
+    } else {
+        dom.endTitle.textContent = "💥 戰機墜毀！任務失敗";
+        dom.endTitle.className = "text-4xl font-black text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.6)] tracking-widest";
+        endBox.style.borderColor = "rgba(239, 68, 68, 0.5)"; 
+    }
     
     saveAndShowLeaderboard(accuracy);
 }
