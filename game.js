@@ -1,17 +1,21 @@
 /**
- * 倉頡打字太空射擊遊戲 - 最終無 Bug 流暢版 (Complete Local Version)
- * 修復：
- * 1. 粒子爆炸線程併發導致的 JS 崩潰 Bug，確保打滿 10 個字 100% 順利晉級！
- * 2. 統一 Canvas 渲染管線至 gameUpdate 循環中，完全消除畫面閃爍。
- * 3. 移除第二關的單字母字（如大、中），確保第二關 100% 是 2-3 碼的多碼合體字！
+ * 倉頡打字太空射擊遊戲 - 戰機重置美化版 (Complete Local Version)
+ * 特色：
+ * 1. 100% 純前端，排行榜使用 LocalStorage。
+ * 2. 移除底部緩衝欄，改為緊跟在戰機下方的「霓虹浮動指示器」。
+ * 3. 速度精細調校：第一關保持高速（1.95），【優化】第三關大幅調慢（1.5）讓玩家有足夠時間拆解 4-5 碼複雜字。
+ * 4. 10字通關：每關擊破 10 個隕石立刻進入 Level Up 動態橫幅，並完美通關！
+ * 5. 實體圓形護盾罩：滿狀態厚實，受損時護盾動態變薄（Thin）並由青轉紅。
+ * 6. 【全新】立體背景流星雨： Canvas 背景偶爾跌落帶有等離子尾焰的半透明流星，增加刺激感且不影響視線！
  */
-// --- 1. 三關字庫設定 (第一關速度再調快 1.3x，第二關字庫擴充至 20 字) ---
+
+// --- 1. 三關字庫設定 (第三關已調慢，確保拆碼時間) ---
 const LEVEL_DATA = {
     1: {
         title: "第一關：倉頡基本字根",
         description: "單一按鍵，熟記鍵盤與字根配對！",
-        speed: 1.95, // 【優化】再次大幅提速！從 1.45 提升至 1.95，下落更激爽有挑戰性
-        spawnInterval: 1900, // 隕石刷新間隔同步縮短，加快節奏
+        speed: 1.95, // 第一關極速挑戰
+        spawnInterval: 1900, 
         words: [
             { char: "日", code: "A" }, { char: "月", code: "B" }, { char: "金", code: "C" },
             { char: "木", code: "D" }, { char: "水", code: "E" }, { char: "火", code: "F" },
@@ -26,10 +30,9 @@ const LEVEL_DATA = {
     2: {
         title: "第二關：常用合體字",
         description: "輸入 2 至 3 碼的常用合體連體字！",
-        speed: 2.3, // 【優化】速度等比提速至 2.3
+        speed: 2.3, 
         spawnInterval: 2600,
         words: [
-            // 【優化】字庫大幅擴充至 20 字，徹底避免重複，難度梯度更科學
             { char: "明", code: "AB" },  // 日 + 月
             { char: "林", code: "DD" },  // 木 + 木
             { char: "因", code: "WK" },  // 田 + 大
@@ -55,8 +58,8 @@ const LEVEL_DATA = {
     3: {
         title: "第三關：高難度手冊挑戰",
         description: "挑戰學習冊中 4 至 5 碼的複雜分體字！",
-        speed: 2.8, // 【優化】最終決戰速度等比調快至 2.8
-        spawnInterval: 3200,
+        speed: 1.5, // 【優化】第三關速度降低至 1.5（從 2.8 大幅調慢），給予充足時間思考拆碼！
+        spawnInterval: 4200, // 生成間隔同步放寬，避免單字過度擁擠
         words: [
             { char: "你", code: "ONF" },    // 人 弓 火
             { char: "語", code: "YRMR" },   // 卜 口 一 口
@@ -68,7 +71,6 @@ const LEVEL_DATA = {
     }
 };
 
-
 const CANGJIE_ALPHABET = {
     'A': '日', 'B': '月', 'C': '金', 'D': '木', 'E': '水', 'F': '火', 'G': '土',
     'H': '竹', 'I': '戈', 'J': '十', 'K': '大', 'L': '中', 'M': '一', 'N': '弓',
@@ -76,7 +78,7 @@ const CANGJIE_ALPHABET = {
     'V': '女', 'W': '田', 'Y': '卜'
 };
 
-// --- 2. AUDIO SYNTHESIZER (Web Audio API 原生即時音效合成) ---
+// --- 2. AUDIO SYNTHESIZER (Web Audio API 原生即時合成) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function playLaserSound() {
@@ -160,8 +162,9 @@ const state = {
     inputBuffer: [],
     keystrokesCount: 0,
     correctKeystrokesCount: 0,
-    wordsDestroyedInLevel: 0, // 當前關卡擊破數，打滿 10 個字過關
-    particles: [],            // 【重構】全局統一渲染的粒子陣列，避免多線程衝突
+    wordsDestroyedInLevel: 0, 
+    particles: [],            // 爆炸粒子
+    bgAsteroids: [],          // 【全新】背景純裝飾流星陣列
     gameLoopId: null,
     spawnIntervalId: null,
     isPlaying: false
@@ -308,7 +311,8 @@ function resetGameState() {
     state.activeEnemies.forEach(e => e.el.remove());
     state.activeEnemies = [];
     state.inputBuffer = [];
-    state.particles = []; // 清空爆炸碎片
+    state.particles = []; 
+    state.bgAsteroids = []; // 清空背景流星
     state.keystrokesCount = 0;
     state.correctKeystrokesCount = 0;
     ctx.clearRect(0, 0, dom.laserCanvas.width, dom.laserCanvas.height);
@@ -392,13 +396,13 @@ function updateEnemyUI(enemy) {
     });
 }
 
-// 【重構】一體化的遊戲物理循環，避免非同步併發與衝突
+// 物理降落與畫面更新 (100% 統一 Canvas 渲染管線)
 function gameUpdate() {
     if (!state.isPlaying) return;
     
     const limitY = dom.gameArea.clientHeight - 130; 
     
-    // 1. 更新隕石位置
+    // 1. 更新文字隕石位置
     for (let i = state.activeEnemies.length - 1; i >= 0; i--) {
         const enemy = state.activeEnemies[i];
         enemy.y += enemy.speed;
@@ -413,16 +417,68 @@ function gameUpdate() {
         }
     }
     
-    // 2. 清空畫布 (每幀只清空一次，防止閃爍)
+    // 2. 【全新】以極低機率產生背景裝飾流星 (流星雨效果)
+    if (Math.random() < 0.04) {
+        spawnBgAsteroid();
+    }
+    
+    // 3. 畫布清空
     ctx.clearRect(0, 0, dom.laserCanvas.width, dom.laserCanvas.height);
 
-    // 3. 繪製鐳射軌跡
+    // 4. 【全新】率先繪製背景流星 (確保其位於鐳射與爆炸的最底層)
+    updateAndDrawBgAsteroids();
+
+    // 5. 繪製雷射軌跡
     drawLasers();
 
-    // 4. 更新並繪製所有粒子 (統一在遊戲循環中渲染，100% 不會發生 index 衝突崩潰！)
+    // 6. 繪製爆炸碎片粒子
     updateAndDrawParticles();
     
     state.gameLoopId = requestAnimationFrame(gameUpdate);
+}
+
+// --- 【全新功能】背景裝飾流星系統 ---
+function spawnBgAsteroid() {
+    state.bgAsteroids.push({
+        x: Math.random() * dom.laserCanvas.width,
+        y: -50,
+        vy: Math.random() * 6 + 6,       // 下落速度極快，營造前進速度感 (6 ~ 12px)
+        vx: (Math.random() - 0.3) * 1.5, // 帶有一點點斜飄角度
+        size: Math.random() * 6 + 3,     // 大小 3 ~ 9px
+        color: ['rgba(244, 63, 94, 0.25)', 'rgba(249, 115, 22, 0.25)', 'rgba(100, 116, 139, 0.2)'][Math.floor(Math.random() * 3)] // 半透明深空色
+    });
+}
+
+function updateAndDrawBgAsteroids() {
+    for (let i = state.bgAsteroids.length - 1; i >= 0; i--) {
+        const ast = state.bgAsteroids[i];
+        ast.x += ast.vx;
+        ast.y += ast.vy;
+        
+        if (ast.y > dom.laserCanvas.height + 50) {
+            state.bgAsteroids.splice(i, 1);
+            continue;
+        }
+        
+        // 繪製帶等離子高溫長尾跡的流星效果
+        ctx.beginPath();
+        const gradient = ctx.createLinearGradient(ast.x, ast.y, ast.x - ast.vx * 3, ast.y - ast.vy * 3);
+        gradient.addColorStop(0, ast.color);
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = ast.size / 2;
+        ctx.lineCap = 'round';
+        ctx.moveTo(ast.x, ast.y);
+        ctx.lineTo(ast.x - ast.vx * 3, ast.y - ast.vy * 3);
+        ctx.stroke();
+        
+        // 繪製流星頭部的微弱發光核心
+        ctx.beginPath();
+        ctx.arc(ast.x, ast.y, ast.size / 3, 0, Math.PI * 2);
+        ctx.fillStyle = ast.color;
+        ctx.fill();
+    }
 }
 
 let laserDrawing = null;
@@ -463,11 +519,9 @@ function drawLasers() {
     if (laserDrawing.life <= 0) laserDrawing = null;
 }
 
-// 擊破隕石
+// 擊破文字隕石
 function destroyEnemy(enemy) {
     playExplosionSound();
-    
-    // 產生粒子 (此時只會往 state.particles 推入數據，不會開啟額外線程，極其安全穩定)
     createParticles(enemy.x, enemy.y + 32);
     
     enemy.el.remove();
@@ -481,27 +535,25 @@ function destroyEnemy(enemy) {
     dom.hudScore.textContent = state.score;
     dom.hudCombo.textContent = state.combo;
     
-    // 增加關卡擊破數
+    // 當前關卡擊破數增加
     state.wordsDestroyedInLevel++;
     
-    // 只要成功擊落 10 個字，立刻自動升級
+    // 成功擊落 10 個字，立刻晉升或通關
     if (state.wordsDestroyedInLevel >= 10) {
         if (state.currentLevel < 3) {
             state.currentLevel++;
-            state.wordsDestroyedInLevel = 0; // 新關卡重置計數
+            state.wordsDestroyedInLevel = 0; 
             dom.hudLevel.textContent = LEVEL_DATA[state.currentLevel].title;
             
             playLevelUpSound();
-            showLevelUpBanner(); // 呼叫彈出升級大橫幅
+            showLevelUpBanner(); 
             startEnemySpawner();
         } else {
-            // 第三關也順利擊破 10 個字 -> 完美通關
             endGame(true); 
         }
     }
 }
 
-// 彈出 Level Up 橫幅
 function showLevelUpBanner() {
     const banner = document.createElement('div');
     banner.className = "absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/70 backdrop-blur-md pointer-events-none transition-all duration-500";
@@ -521,21 +573,19 @@ function showLevelUpBanner() {
     
     dom.gameArea.appendChild(banner);
     
-    // 清除畫面上現有的舊隕石，讓新關卡有一個乾淨的開局
     state.activeEnemies.forEach(e => {
         createParticles(e.x, e.y + 32);
         e.el.remove();
     });
     state.activeEnemies = [];
     
-    // 1.8 秒後自動縮小並淡出移除
     setTimeout(() => {
         banner.classList.add('opacity-0', 'scale-95');
         setTimeout(() => banner.remove(), 500);
     }, 1800);
 }
 
-// 推入爆炸碎片
+// 擊中爆炸碎片推入
 function createParticles(x, y) {
     const particleCount = 20;
     const colors = ['#22d3ee', '#ec4899', '#f43f5e', '#f59e0b', '#ffffff'];
@@ -552,7 +602,6 @@ function createParticles(x, y) {
     }
 }
 
-// 【全新】統一更新與繪製粒子
 function updateAndDrawParticles() {
     ctx.save();
     for (let i = state.particles.length - 1; i >= 0; i--) {
@@ -597,7 +646,6 @@ function triggerShieldDamage() {
 function updateShieldVisuals() {
     dom.hudShieldPct.textContent = `${state.shield}%`;
     
-    // 動態護盾粗細：滿能量 6px，快爆時只有 1px (Thin)
     const borderWidth = Math.max(1, (state.shield / 100) * 6);
     dom.shipShield.style.borderWidth = `${borderWidth}px`;
     
